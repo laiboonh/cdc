@@ -21,6 +21,16 @@ defmodule Cdc.Accounts do
     end
   end
 
+  @spec withdraw(Account.t(), Money.t()) ::
+          {:ok, Account.t()} | {:error, :negative_amount | :zero_amount}
+  def withdraw(account, amount) do
+    if amount |> Money.negative?() do
+      {:error, :negative_amount}
+    else
+      create_transaction(account, amount |> Money.negate!())
+    end
+  end
+
   @spec create_transaction(Account.t(), Money.t()) :: {:ok, Account.t()} | {:error, :zero_amount}
   defp create_transaction(account, amount) do
     if amount |> Money.zero?() do

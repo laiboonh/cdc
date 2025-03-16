@@ -16,3 +16,11 @@
 ```
 
 ```
+- Users can withdraw money from their accounts
+```
+
+```
+- Users are not allowed to overdraft their accounts
+```
+
+```
