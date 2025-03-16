@@ -12,7 +12,7 @@ defmodule Cdc.Accounts do
   end
 
   @spec deposit(Account.t(), Money.t()) ::
-          {:ok, Account.t()} | {:error, :negative_amount | :zero_amount}
+          {:ok, Account.t()} | {:error, :negative_amount | :zero_amount | :negative_balance}
   def deposit(account, amount) do
     if amount |> Money.negative?() do
       {:error, :negative_amount}
@@ -22,7 +22,7 @@ defmodule Cdc.Accounts do
   end
 
   @spec withdraw(Account.t(), Money.t()) ::
-          {:ok, Account.t()} | {:error, :negative_amount | :zero_amount}
+          {:ok, Account.t()} | {:error, :negative_amount | :zero_amount | :negative_balance}
   def withdraw(account, amount) do
     if amount |> Money.negative?() do
       {:error, :negative_amount}
@@ -31,7 +31,18 @@ defmodule Cdc.Accounts do
     end
   end
 
-  @spec create_transaction(Account.t(), Money.t()) :: {:ok, Account.t()} | {:error, :zero_amount}
+  @spec transfer(Account.t(), Account.t(), Money.t()) ::
+          {:ok, Account.t(), Account.t()}
+          | {:error, :negative_amount | :zero_amount | :negative_balance}
+  def transfer(from_account, to_account, amount) do
+    with {:ok, from_account} <- withdraw(from_account, amount),
+         {:ok, to_account} <- deposit(to_account, amount) do
+      {:ok, from_account, to_account}
+    end
+  end
+
+  @spec create_transaction(Account.t(), Money.t()) ::
+          {:ok, Account.t()} | {:error, :zero_amount | :negative_balance}
   defp create_transaction(account, amount) do
     if amount |> Money.zero?() do
       {:error, :zero_amount}

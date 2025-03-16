@@ -84,4 +84,40 @@ defmodule Accounts.AccountTest do
                {:error, :negative_balance}
     end
   end
+
+  describe "transfer" do
+    setup do
+      {:ok, from_account} = Cdc.Accounts.create_account("from", Money.from_float(:SGD, 1.23))
+      {:ok, to_account} = Cdc.Accounts.create_account("to", Money.from_float(:SGD, 1.23))
+      %{from_account: from_account, to_account: to_account}
+    end
+
+    test "success", %{from_account: from_account, to_account: to_account} do
+      {:ok,
+       %Cdc.Accounts.Account{
+         name: "from",
+         balance: from_balance,
+         transactions: from_transactions
+       },
+       %Cdc.Accounts.Account{
+         name: "to",
+         balance: to_balance,
+         transactions: to_transactions
+       }} =
+        Cdc.Accounts.transfer(from_account, to_account, Money.from_float(:SGD, 0.05))
+
+      assert from_balance == Money.new(:SGD, "1.18")
+      assert_lists_equal(from_transactions, [Money.new(:SGD, "-0.05"), Money.new(:SGD, "1.23")])
+      assert to_balance == Money.new(:SGD, "1.28")
+      assert_lists_equal(to_transactions, [Money.new(:SGD, "0.05"), Money.new(:SGD, "1.23")])
+    end
+
+    test "transfer resulting in overdraft fails", %{
+      from_account: from_account,
+      to_account: to_account
+    } do
+      assert Cdc.Accounts.transfer(from_account, to_account, Money.from_float(:SGD, 4.56)) ==
+               {:error, :negative_balance}
+    end
+  end
 end
