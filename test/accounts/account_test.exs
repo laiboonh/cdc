@@ -22,13 +22,23 @@ defmodule Accounts.AccountTest do
     end
 
     test "when balance is 0" do
-      assert Cdc.Accounts.create_account("foo", Money.from_float(:SGD, 1.23)) ==
-               {:ok,
-                %Cdc.Accounts.Account{
-                  name: "foo",
-                  balance: Money.new(:SGD, "1.23"),
-                  transactions: [Money.new(:SGD, "1.23")]
-                }}
+      {:ok,
+       %Cdc.Accounts.Account{
+         name: "foo",
+         balance: balance,
+         transactions: transactions
+       }} = Cdc.Accounts.create_account("foo", Money.from_float(:SGD, 1.23))
+
+      assert balance == Money.new(:SGD, "1.23")
+
+      assert_lists_equal(
+        transactions |> Enum.map(fn elem -> Map.put(elem, :created_on, nil) end),
+        [
+          %Cdc.Accounts.Transaction{
+            amount: Money.new(:SGD, "1.23")
+          }
+        ]
+      )
     end
   end
 
@@ -52,13 +62,22 @@ defmodule Accounts.AccountTest do
         Cdc.Accounts.deposit(account, Money.from_float(:SGD, 4.56))
 
       assert balance == Money.new(:SGD, "5.79")
-      assert_lists_equal(transactions, [Money.new(:SGD, "1.23"), Money.new(:SGD, "4.56")])
+
+      assert_lists_equal(
+        transactions |> Enum.map(fn elem -> Map.put(elem, :created_on, nil) end),
+        [
+          %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "4.56")},
+          %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "1.23")}
+        ]
+      )
     end
   end
 
   describe "withdraw" do
     setup do
-      {:ok, account} = Cdc.Accounts.create_account("foo", Money.from_float(:SGD, 1.23))
+      {:ok, account} =
+        Cdc.Accounts.create_account("foo", Money.from_float(:SGD, 1.23))
+
       %{account: account}
     end
 
@@ -76,7 +95,14 @@ defmodule Accounts.AccountTest do
         Cdc.Accounts.withdraw(account, Money.from_float(:SGD, 0.05))
 
       assert balance == Money.new(:SGD, "1.18")
-      assert_lists_equal(transactions, [Money.new(:SGD, "1.23"), Money.new(:SGD, "-0.05")])
+
+      assert_lists_equal(
+        transactions |> Enum.map(fn elem -> Map.put(elem, :created_on, nil) end),
+        [
+          %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "-0.05")},
+          %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "1.23")}
+        ]
+      )
     end
 
     test "when we overdraft", %{account: account} do
@@ -107,9 +133,24 @@ defmodule Accounts.AccountTest do
         Cdc.Accounts.transfer(from_account, to_account, Money.from_float(:SGD, 0.05))
 
       assert from_balance == Money.new(:SGD, "1.18")
-      assert_lists_equal(from_transactions, [Money.new(:SGD, "-0.05"), Money.new(:SGD, "1.23")])
+
+      assert_lists_equal(
+        from_transactions |> Enum.map(fn elem -> Map.put(elem, :created_on, nil) end),
+        [
+          %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "-0.05")},
+          %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "1.23")}
+        ]
+      )
+
       assert to_balance == Money.new(:SGD, "1.28")
-      assert_lists_equal(to_transactions, [Money.new(:SGD, "0.05"), Money.new(:SGD, "1.23")])
+
+      assert_lists_equal(
+        to_transactions |> Enum.map(fn elem -> Map.put(elem, :created_on, nil) end),
+        [
+          %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "0.05")},
+          %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "1.23")}
+        ]
+      )
     end
 
     test "transfer resulting in overdraft fails", %{
@@ -118,6 +159,31 @@ defmodule Accounts.AccountTest do
     } do
       assert Cdc.Accounts.transfer(from_account, to_account, Money.from_float(:SGD, 4.56)) ==
                {:error, :negative_balance}
+    end
+
+    test "same account fails", %{
+      from_account: from_account
+    } do
+      assert Cdc.Accounts.transfer(from_account, from_account, Money.from_float(:SGD, 4.56)) ==
+               {:error, :same_account}
+    end
+  end
+
+  describe "account_history" do
+    test "returns a list of account's transaction (latest first)" do
+      {:ok, account} =
+        Cdc.Accounts.create_account("foo", Money.from_float(:SGD, 1.23))
+
+      {:ok, account} = Cdc.Accounts.deposit(account, Money.parse("4.56"))
+      {:ok, account} = Cdc.Accounts.deposit(account, Money.parse("2.34"))
+
+      transactions = Cdc.Accounts.account_history(account)
+
+      assert transactions |> Enum.map(fn elem -> Map.put(elem, :created_on, nil) end) == [
+               %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "2.34")},
+               %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "4.56")},
+               %Cdc.Accounts.Transaction{amount: Money.new(:SGD, "1.23")}
+             ]
     end
   end
 end
